@@ -1,7 +1,9 @@
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import StructType, StructField, DoubleType, StringType, TimestampType, IntegerType
 from pyspark.sql import functions as f
+
 from config import kafka_security_options, docker_postgresql_settings, postgresql_settings, spark_jars_packages, TOPIC_IN, TOPIC_OUT
+
 from datetime import datetime
 from time import sleep
 
@@ -22,14 +24,14 @@ current_timestamp_utc = int(round(datetime.utcnow().timestamp()))
 def read_adv_stream(spark: SparkSession) -> DataFrame:
     # Задаем схему
     schema = StructType([
-        StructField("restaurant_id", StringType()),
-        StructField("adv_campaign_id", StringType()),
-        StructField("adv_campaign_content", StringType()),
-        StructField("adv_campaign_owner", StringType()),
-        StructField("adv_campaign_owner_contact", StringType()),
-        StructField("adv_campaign_datetime_start", DoubleType()),
-        StructField("adv_campaign_datetime_end", DoubleType()),
-        StructField("datetime_created", DoubleType())
+        StructField("restaurant_id", StringType(), True),
+        StructField("adv_campaign_id", StringType(), True),
+        StructField("adv_campaign_content", StringType(), True),
+        StructField("adv_campaign_owner", StringType()), True,
+        StructField("adv_campaign_owner_contact", StringType(), True),
+        StructField("adv_campaign_datetime_start", DoubleType(), True),
+        StructField("adv_campaign_datetime_end", DoubleType(), True),
+        StructField("datetime_created", DoubleType(), True)
     ])
     # Поулчение данных
     restaurant_read_stream_df = (spark.readStream \
@@ -58,7 +60,7 @@ def read_user(spark: SparkSession) -> DataFrame:
 # Джоиним стрим с акциями и статическую таблицу с юзерами с подпиской
 def join(restaurant_read_stream_df, subscribers_restaurant_df) -> DataFrame:
     join_df = restaurant_read_stream_df \
-    .join(subscribers_restaurant_df, 'restaurant_id') \
+    .join(subscribers_restaurant_df, 'restaurant_id', 'inner') \
     .withColumn('trigger_datetime_created', f.lit(current_timestamp_utc)) \
     .select(
         'restaurant_id',
@@ -75,7 +77,7 @@ def join(restaurant_read_stream_df, subscribers_restaurant_df) -> DataFrame:
     return join_df
 
 # создаем выходные сообщения с фидбеком
-def foreach_batch_function(df):
+def foreach_batch_function(df, epoch_id):
         # Кэш датафрейма df в памяти
         df.persist()
 
